@@ -1,4 +1,4 @@
-package net.achiloque.googlehistory;
+package net.archiloque.googlehistory;
 
 import au.com.bytecode.opencsv.CSVWriter;
 import com.gargoylesoftware.htmlunit.ElementNotFoundException;
@@ -10,6 +10,7 @@ import java.awt.FlowLayout;
 import java.io.IOException;
 import java.io.Writer;
 import java.text.DateFormat;
+import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -19,7 +20,6 @@ import org.w3c.dom.Node;
 
 /**
  * Simple app that scrape your google history and make it available as csv
- *
  */
 public class GoogleHistoryApp {
 
@@ -31,16 +31,20 @@ public class GoogleHistoryApp {
     private final JLabel searchNumber = new JLabel();
     private final JLabel searchDate = new JLabel();
     private final CSVWriter csvWriter;
+    private static final String APPLICATION_NAME = "Google History";
+
+    private final ResourceBundle resourceBundle = PropertyResourceBundle.getBundle("net.archiloque.googlehistory.bundle");
 
     private static final DateFormat SIMPLE_DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy");
 
     public static void main(String[] args) throws Exception {
+        System.out.println(Locale.getDefault().getLanguage());
         SIMPLE_DATE_FORMAT.setCalendar(new GregorianCalendar());
         new GoogleHistoryApp();
     }
 
     private GoogleHistoryApp() throws Exception {
-        jFrame = new JFrame("Google History");
+        jFrame = new JFrame(APPLICATION_NAME);
         jFrame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         jFrame.setLayout(new BorderLayout());
 
@@ -63,7 +67,7 @@ public class GoogleHistoryApp {
             }
         }, ';');
 
-        csvWriter.writeNext(new String[]{"Type", "Date", "Heure", "Terme de la recherche", "Titre de la page", "Lien"});
+        csvWriter.writeNext(resourceBundle.getString("COLUMNS_NAMES").split(","));
 
         logArea = new JTextArea(100, 120);
         logArea.setEditable(false);
@@ -72,9 +76,9 @@ public class GoogleHistoryApp {
 
         JPanel topPanel = new JPanel();
         topPanel.setLayout(new FlowLayout());
-        topPanel.add(new JLabel("Nombre de recherches"));
+        topPanel.add(new JLabel(resourceBundle.getString("SEARCH_NUMBER")));
         topPanel.add(searchNumber);
-        topPanel.add(new JLabel("Date de la dernière recherche récupérée"));
+        topPanel.add(new JLabel(resourceBundle.getString("LAST_SEARCH")));
         topPanel.add(searchDate);
         jFrame.getContentPane().add(topPanel, BorderLayout.NORTH);
         jFrame.getContentPane().add(mainScrollPane, BorderLayout.CENTER);
@@ -115,7 +119,7 @@ public class GoogleHistoryApp {
                 String month = m.group(2);
                 int monthAsInt = MONTHES.indexOf(month);
                 if (monthAsInt == -1) {
-                    throw new RuntimeException("Cant find month [" + month + "]");
+                    throw new RuntimeException(MessageFormat.format(resourceBundle.getString("UNKNOWN_MONTH"), month));
                 }
                 //noinspection MagicConstant
                 cal.set(
@@ -130,7 +134,7 @@ public class GoogleHistoryApp {
                     String month = m.group(2);
                     int monthAsInt = MONTHES.indexOf(month);
                     if (monthAsInt == -1) {
-                        throw new RuntimeException("Cant find month [" + month + "]");
+                        throw new RuntimeException(MessageFormat.format(resourceBundle.getString("UNKNOWN_MONTH"), month));
                     }
                     //noinspection MagicConstant
                     cal.set(
@@ -140,19 +144,19 @@ public class GoogleHistoryApp {
                     );
                     return cal;
                 }
-                throw new RuntimeException("Cant parse [" + dateString + "]");
+                throw new RuntimeException(MessageFormat.format(resourceBundle.getString("CAN_T_PARSE_DATE"), dateString));
             }
         }
     }
 
-    private static final String MAIN_HISTORY_PAGE = "https://history.google.com/history/";
+    private static final String MAIN_HISTORY_PAGE = "https://history.google.com/history/?hl=fr";
 
     private void fetchHistory(UserParamaters userParamaters) throws Exception {
         List<GoogleHistoryEntry> result = new ArrayList<GoogleHistoryEntry>();
 
         WebClient webClient = new WebClient();
         webClient.getOptions().setJavaScriptEnabled(false);
-        log("Ouverture de la page " + MAIN_HISTORY_PAGE);
+        log(MessageFormat.format(resourceBundle.getString("OPENNING_PAGE"), MAIN_HISTORY_PAGE));
         HtmlPage loginPage = webClient.getPage(MAIN_HISTORY_PAGE);
         HtmlPage historyPage = reconnect(userParamaters, loginPage);
         GoogleHistoryEntry currentEntry = null;
@@ -163,19 +167,19 @@ public class GoogleHistoryApp {
                 next = historyPage.getAnchorByText("Précédent");
                 searchNumber.setText(Integer.toString(result.size()));
                 searchDate.setText(SIMPLE_DATE_FORMAT.format(currentEntry.date.getTime()));
-                log("Page suivante");
+                log(resourceBundle.getString("NEXT_PAGE"));
                 historyPage = next.click();
                 Thread.sleep(3000);
             } catch (ElementNotFoundException e) {
-                log("Page précédente non trouvée");
+                log(resourceBundle.getString("NEXT_PAGE_NOT_FOUND"));
                 try {
                     historyPage.getElementByName("Passwd");
                 } catch (ElementNotFoundException e2) {
-                    log("Formulaire de reconnection non trouvé, arrêt");
-                    JOptionPane.showMessageDialog(jFrame, "Votre historique est complet");
+                    log(resourceBundle.getString("CONNECTION_FORM_NOT_FOUND_STOPPING"));
+                    JOptionPane.showMessageDialog(jFrame, resourceBundle.getString("HISTORY_FETCHED"));
                     return;
                 }
-                log("Formulaire de reconnection trouvé");
+                log(resourceBundle.getString("CONNECTION_FORM_FOUND"));
                 historyPage = reconnect(userParamaters, historyPage);
             }
             currentEntry = scrapePage(historyPage, userParamaters, currentEntry, result);
@@ -184,7 +188,7 @@ public class GoogleHistoryApp {
 
     private HtmlPage reconnect(UserParamaters userParamaters, HtmlPage historyPage) throws IOException {
         HtmlForm loginForm;
-        log("Remplissage du formulaire de connexion");
+        log(resourceBundle.getString("FILLING_CONNECTION_FORM"));
         loginForm = historyPage.getForms().get(0);
         try {
             loginForm.getInputByName("Email").setValueAttribute(userParamaters.login);
@@ -193,7 +197,7 @@ public class GoogleHistoryApp {
         }
         loginForm.getInputByName("Passwd").setValueAttribute(userParamaters.password);
         historyPage = loginForm.getInputByName("signIn").click();
-        log("Connexion");
+        log(resourceBundle.getString("CONNECTION"));
         return historyPage;
     }
 
@@ -204,8 +208,8 @@ public class GoogleHistoryApp {
         } catch (ElementNotFoundException e) {
             if (currentEntry == null) {
                 // failed to log the first time
-                log("Impossible de se connecter");
-                JOptionPane.showMessageDialog(jFrame, "Impossible de se connecter", "Google History", JOptionPane.ERROR_MESSAGE);
+                log(resourceBundle.getString("CAN_T_CONNECT"));
+                JOptionPane.showMessageDialog(jFrame, resourceBundle.getString("CAN_T_CONNECT"), APPLICATION_NAME, JOptionPane.ERROR_MESSAGE);
                 return null;
             }
             if (historyPage.getForms().isEmpty()) {
@@ -215,7 +219,7 @@ public class GoogleHistoryApp {
             try {
                 pageForm = historyPage.getFormByName("edit");
             } catch (ElementNotFoundException e2) {
-                log("Impossible de trouver la liste des recherches");
+                log(resourceBundle.getString("CAN_T_FIND_SEARCH_LIST"));
                 return null;
             }
         }
@@ -235,7 +239,7 @@ public class GoogleHistoryApp {
                     currentEntry = new GoogleHistoryEntry(terme, currentDate, heure);
                     csvWriter.writeNext(
                             new String[]{
-                                    "Recherche",
+                                    resourceBundle.getString("SEARCH_TYPE"),
                                     SIMPLE_DATE_FORMAT.format(currentEntry.date.getTime()),
                                     currentEntry.heure,
                                     currentEntry.terme});
@@ -255,7 +259,7 @@ public class GoogleHistoryApp {
                         GoogleHistoryClick googleHistoryClick = new GoogleHistoryClick(terme, addresse, currentDate, heure);
                         csvWriter.writeNext(
                                 new String[]{
-                                        "Résultat",
+                                        resourceBundle.getString("RESULT_TYPE"),
                                         SIMPLE_DATE_FORMAT.format(googleHistoryClick.date.getTime()),
                                         googleHistoryClick.heure,
                                         null,
@@ -320,7 +324,8 @@ public class GoogleHistoryApp {
     public UserParamaters getUserCredentials() {
         String login = JOptionPane.showInputDialog(
                 jFrame,
-                "Entrez votre email google", "Google History",
+                resourceBundle.getString("GOOGLE_EMAIL"),
+                APPLICATION_NAME,
                 JOptionPane.QUESTION_MESSAGE);
         if (login == null) {
             jFrame.dispose();
@@ -328,7 +333,8 @@ public class GoogleHistoryApp {
         }
         String password = JOptionPane.showInputDialog(
                 jFrame,
-                "Entrez votre mot de passe google", "Google History",
+                resourceBundle.getString("GOOGLE_PASSWORD"),
+                APPLICATION_NAME,
                 JOptionPane.QUESTION_MESSAGE);
         if (password == null) {
             jFrame.dispose();
@@ -336,13 +342,13 @@ public class GoogleHistoryApp {
         }
         boolean recupereResultat = JOptionPane.showOptionDialog(
                 jFrame,
-                "Voulez vous les liens sur lesquels vous avez cliqué en plus des recherche",
-                "Google History",
+                resourceBundle.getString("SHOW_CLICKED_LINKS"),
+                APPLICATION_NAME,
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.QUESTION_MESSAGE,
                 null,
-                new Object[]{"Oui", "Non"},
-                "Oui"
+                new Object[]{resourceBundle.getString("YES"), resourceBundle.getString("NO")},
+                resourceBundle.getString("YES")
         ) == 0;
         return new UserParamaters(login, password, recupereResultat);
 
